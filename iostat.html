@@ -1,0 +1,62 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+ <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Disk Utilization</title>
+    <link href="layout.css" rel="stylesheet" type="text/css">
+    <!--[if lte IE 8]><script language="javascript" type="text/javascript" src="../excanvas.min.js"></script><![endif]-->
+    <script language="javascript" type="text/javascript" src="jquery.js"></script>
+    <script language="javascript" type="text/javascript" src="jquery.flot.js"></script>
+ </head>
+    <body>
+    <h1>Disk Utilization</h1>
+
+    <div id="placeholder" style="width:800px;height:300px;"></div>
+
+    <label for="id_display_mode">Display:</label>
+    <select name="display_mode" id="id_display_mode"></select>
+
+<script type="text/javascript">
+var options = {
+  lines: { show: true },
+  points: { show: true },
+  xaxis: { tickDecimals: 0, tickSize: 1 }
+};
+var MODE = 'util';
+
+var columns = new Array('rrqm_s', 'wrqm_s', 'r_s', 'w_s', 'rkb_s', 'wkb_s', 'avgrq_sz', 'avgqu_sz', 'await', 'r_await', 'w_await', 'svctm', 'util');
+
+$(function () {
+  var placeholder = $("#placeholder");
+  setInterval(fetchData, 1000);
+
+  for (var i = 0; i < columns.length; i++) {
+    col = columns[i];
+    sel = col == 'util' ? ' selected="selected"' : '';
+    $('#id_display_mode').append('<option' + sel +'>' + columns[i] + '</option>');
+  }
+});
+
+function fetchData() {
+  function onDataReceived(series) {
+    // we get all the data in one go, if we only got partial
+    // data, we could merge it with what we already got
+    $.plot($("#placeholder"), series, options);
+  }
+
+  $.ajax({
+    // usually, we'll just call the same URL, a script
+    // connected to a database, but in this case we only
+    // have static example files so we need to modify the
+    // URL
+    url: "/" + $('#id_display_mode').val(),
+    method: 'GET',
+    dataType: 'json',
+    success: onDataReceived
+  });
+}
+</script>
+
+ </body>
+</html>
+
