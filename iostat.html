@@ -3,10 +3,10 @@
  <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Disk Utilization</title>
-    <link href="layout.css" rel="stylesheet" type="text/css">
+    <link href="/static/layout.css" rel="stylesheet" type="text/css">
     <!--[if lte IE 8]><script language="javascript" type="text/javascript" src="../excanvas.min.js"></script><![endif]-->
-    <script language="javascript" type="text/javascript" src="jquery.js"></script>
-    <script language="javascript" type="text/javascript" src="jquery.flot.js"></script>
+    <script language="javascript" type="text/javascript" src="/static/jquery.js"></script>
+    <script language="javascript" type="text/javascript" src="/static/jquery.flot.js"></script>
  </head>
     <body>
     <h1>Disk Utilization</h1>
@@ -18,38 +18,72 @@
 
 <script type="text/javascript">
 var options = {
+  clickable: true,
+  hoverable: true,
   lines: { show: true },
-  points: { show: true },
-  xaxis: { tickDecimals: 0, tickSize: 1 }
+  //points: { show: true },
+  xaxis: {
+    mode: 'time',
+    minTickSize: [1, 'second'],
+    tickSize: [20, 'second'],
+    //timeformat: '%H:%M:%S'
+  }
 };
-var MODE = 'util';
+var data = [];
+var last_stamp = null;
+var max_size = 120;
 
 var columns = new Array('rrqm_s', 'wrqm_s', 'r_s', 'w_s', 'rkb_s', 'wkb_s', 'avgrq_sz', 'avgqu_sz', 'await', 'r_await', 'w_await', 'svctm', 'util');
 
 $(function () {
-  var placeholder = $("#placeholder");
   setInterval(fetchData, 1000);
 
+  display_mode = $('#id_display_mode');
   for (var i = 0; i < columns.length; i++) {
     col = columns[i];
     sel = col == 'util' ? ' selected="selected"' : '';
-    $('#id_display_mode').append('<option' + sel +'>' + columns[i] + '</option>');
+    display_mode.append('<option' + sel +'>' + columns[i] + '</option>');
   }
+  display_mode.change(function () { data = []; last_stamp = null; });
 });
+
+function updateDataSet(new_data) {
+  var match_found = false;
+  for (s in data) {
+    series = data[s];
+    if (series.label == new_data.label) {
+      match_found = true;
+      data[s].data = series.data.concat(new_data.data);
+
+      // make sure we only have a certain amount of data
+      while (data[s].data.length > max_size) data[s].data.shift();
+      return;
+    }
+  }
+
+  if (!match_found) data.push(new_data);
+}
 
 function fetchData() {
   function onDataReceived(series) {
     // we get all the data in one go, if we only got partial
     // data, we could merge it with what we already got
-    $.plot($("#placeholder"), series, options);
+    series.map(updateDataSet);
+
+    last_stamp = +new Date();
+    $.plot($("#placeholder"), data, options);
   }
+
+  params = {};
+  if (last_stamp !== null)  params = {since: last_stamp};
 
   $.ajax({
     // usually, we'll just call the same URL, a script
     // connected to a database, but in this case we only
     // have static example files so we need to modify the
     // URL
-    url: "/" + $('#id_display_mode').val(),
+    url: "/data/" + $('#id_display_mode').val(),
+    data: params,
     method: 'GET',
     dataType: 'json',
     success: onDataReceived

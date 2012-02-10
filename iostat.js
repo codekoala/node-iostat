@@ -1,54 +1,44 @@
 var sys = require('sys'),
     spawn = require('child_process').spawn,
-    app = require('http').createServer(handler),
+    //app = require('http').createServer(handler),
+    express = require('express'),
     url = require('url'),
     fs = require('fs'),
     all_disks = {},
-    columns = new Array('rrqm_s', 'wrqm_s', 'r_s', 'w_s', 'rkb_s', 'wkb_s', 'avgrq_sz', 'avgqu_sz', 'await', 'r_await', 'w_await', 'svctm', 'util');
+    columns = [];
 
-function handler(req, res) {
-  var path = url.parse(req.url).pathname;
-  switch (path) {
-    case '/':
-      console.log('Serving homepage');
-      getFile('iostat.html', res);
-      break;
-    default:
-      col = path.slice(1);
-      if (columns.indexOf(col) != -1) {
-        getDiskInfo(col, res);
-      } else {
-        console.log('Got a request for', path);
-        getFile(path, res);
-      }
+var app = express.createServer();
+app.configure(function () {
+  app.use(express.errorHandler({dumpExceptions: true, showStack: true}));
+});
+
+app.get('/', function(req, res) {
+  getFile('iostat.html', res);
+});
+
+app.use('/static', express.static(__dirname));
+
+app.get('/data/:col', function(req, res) {
+  if (columns.indexOf(req.params.col) != -1) {
+    since = parseInt(req.param('since', null));
+    getDiskInfo(req.params.col, since, res);
   }
-}
+});
 
-function getFile(filename, res) {
-  fs.readFile(__dirname + '/' + filename, function (err, data) {
-    if (err) {
-      res.writeHead(500);
-      return res.end('Error loading ' + filename);
-    }
-
-    res.writeHead(200);
-    res.end(data);
-  });
-}
-
-function getDiskInfo(col, res) {
+function getDiskInfo(col, since, res) {
   results = new Array();
   for (name in all_disks) {
     disk = all_disks[name];
-    points = new Array();
-    size = disk.data[col].items.length;
-    for (history = -1 * size; history < 0; history++) {
-      points.push([history, disk.data[col].items[history + size]]);
+    data = disk.data[col].items;
+    if (since !== null) {
+      data = data.filter(function (value) {
+        return value[0] >= since;
+      });
     }
 
     results.push({
       label: name,
-      data: points
+      data: data
     });
   }
   res.writeHead(200);
@@ -74,38 +64,56 @@ function Disk(name) {
   this.data = {}
   for (var i = 0; i < columns.length; i++) {
     var col = columns[i];
-    this.data[col] = new Queue(20);
+    this.data[col] = new Queue(120);
   }
 }
 Disk.prototype.parse_data = function (data) {
+  var now = Math.round(+new Date());
   for (var i = 0; i < columns.length; i++) {
     var col = columns[i];
-    this.data[col].push(parseFloat(data[i]));
+    this.data[col].push([now, parseFloat(data[i])]);
   }
 }
 
+function splitColumns(line) { return line.replace(/\s+/g, ' ').split(' '); }
+function parseColumn(col) { return col.replace('/', '_').replace(/[^\w\-]/g, ''); }
+
 function getIOStats() {
-  iostat = spawn("iostat", ['-dx', '1'], {setsid: true, encoding: 'ascii'});
+  /**
+   * Executes the iostat command and regularly parses the output.  Data are
+   * queued up for later use.
+   **/
+
+  iostat = spawn("iostat", ['-dx', '-p', '1'], {setsid: true, encoding: 'ascii'});
   iostat.stdout.on('data', function (data) {
+    // coerce the buffer to a string
     stdout = '' + data;
-    disks = stdout.match(/^\w+(\s+\d+.\d+){13}/gm);
-    if (!disks) {
-      return;
+
+    // make sure we have column names on the first run
+    if (columns.length == 0) {
+      raw_columns = stdout.match(/^Device:(\s+[\w\/%\-]+)+/gm);
+      if (!raw_columns) return;
+
+      raw_columns = raw_columns.map(splitColumns)[0];
+      raw_columns.shift();
+      columns = raw_columns.map(parseColumn);
     }
 
+    // now try to parse disk information
+    disks = stdout.match(/^\w+(\s+\d+.\d+){13}/gm);
+    if (!disks) return;
+
     disks.forEach(function (disk) {
-      data = disk.replace(/\s+/g, ' ').split(' ');
-      //console.log(data);
+      data = splitColumns(disk);
       name = data.shift();
       if (!(name in all_disks)) {
         all_disks[name] = new Disk(name);
       }
       all_disks[name].parse_data(data);
-      //console.log(name + ' utilization:', all_disks[name].data.util.items);
     });
   });
 }
 
-app.listen(1337);
+app.listen(8000);
 getIOStats();
 
