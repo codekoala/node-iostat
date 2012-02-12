@@ -28,7 +28,7 @@ app.get('/data/:col', function(req, res) {
     res.writeHead(200);
     res.end(JSON.stringify(columns));
   } else if (columns.indexOf(req.params.col) != -1) {
-    since = parseInt(req.param('since', null));
+    since = parseInt(req.param('since', 0));
     getDiskInfo(req.params.col, since, res);
   }
 });
@@ -37,12 +37,7 @@ function getDiskInfo(col, since, res) {
   results = new Array();
   for (name in all_disks) {
     disk = all_disks[name];
-    data = disk.data[col].items;
-    if (since !== null) {
-      data = data.filter(function (value) {
-        return value[0] >= since;
-      });
-    }
+    data = disk.data[col].items.filter(function (value) { return value[0] >= since; });
 
     results.push({
       label: name,
