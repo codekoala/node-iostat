@@ -29,21 +29,28 @@ var options = {
     //timeformat: '%H:%M:%S'
   }
 };
+var columns = null
 var data = [];
 var last_stamp = null;
 var max_size = 120;
-
-var columns = new Array('rrqm_s', 'wrqm_s', 'r_s', 'w_s', 'rkb_s', 'wkb_s', 'avgrq_sz', 'avgqu_sz', 'await', 'r_await', 'w_await', 'svctm', 'util');
 
 $(function () {
   setInterval(fetchData, 1000);
 
   display_mode = $('#id_display_mode');
-  for (var i = 0; i < columns.length; i++) {
-    col = columns[i];
-    sel = col == 'util' ? ' selected="selected"' : '';
-    display_mode.append('<option' + sel +'>' + columns[i] + '</option>');
-  }
+  $.ajax({
+    url: "/data/column_names",
+    method: 'GET',
+    dataType: 'json',
+    success: function (result) {
+      columns = result;
+      for (var i = 0; i < columns.length; i++) {
+        col = columns[i];
+        sel = col == 'util' ? ' selected="selected"' : '';
+        display_mode.append('<option' + sel +'>' + columns[i] + '</option>');
+      }
+    }
+  });
   display_mode.change(function () { data = []; last_stamp = null; });
 });
 

@@ -24,7 +24,10 @@ app.get('/', function(req, res) {
 app.use('/static', express.static(__dirname));
 
 app.get('/data/:col', function(req, res) {
-  if (columns.indexOf(req.params.col) != -1) {
+  if (req.params.col == 'column_names') {
+    res.writeHead(200);
+    res.end(JSON.stringify(columns));
+  } else if (columns.indexOf(req.params.col) != -1) {
     since = parseInt(req.param('since', null));
     getDiskInfo(req.params.col, since, res);
   }
@@ -96,7 +99,7 @@ function getIOStats() {
 
     // make sure we have column names on the first run
     if (columns.length == 0) {
-      raw_columns = stdout.match(/^Device:(\s+[\w\/%\-]+)+/gm);
+      raw_columns = stdout.match(/^Device:(\s+[\w\/%\-]+)+$/gm);
       if (!raw_columns) return;
 
       raw_columns = raw_columns.map(splitColumns)[0];
@@ -105,7 +108,7 @@ function getIOStats() {
     }
 
     // now try to parse disk information
-    disks = stdout.match(/^\w+(\s+\d+.\d+){13}/gm);
+    disks = stdout.match(/^\w+(\s+\d+.\d+)+$/gm);
     if (!disks) return;
 
     disks.forEach(function (disk) {
