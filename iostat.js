@@ -13,7 +13,12 @@ app.configure(function () {
 });
 
 app.get('/', function(req, res) {
-  getFile('iostat.html', res);
+  fs.readFile('./iostat.html', function (err, data){
+    if (err) throw err;
+
+    res.writeHead(200);
+    res.end(data);
+  });
 });
 
 app.use('/static', express.static(__dirname));
